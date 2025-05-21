@@ -228,26 +228,33 @@ class CNN:
 
         plt.show()
 
-
     def plot_training_history_from_dir(self, checkpoint_dir):
-        """Plot training history by reading JSON checkpoints from a directory"""
-
+        """Plot training history by reading checkpoints from a directory"""
         train_loss, val_loss, train_acc, val_acc = [], [], [], []
 
-        # Sort the files by epoch number (assuming filenames have epochs)
+        # Get all checkpoint files and sort by epoch number
         checkpoint_files = sorted(
-            [f for f in os.listdir(checkpoint_dir) if f.endswith('.json')],
-            key=lambda x: int(os.path.splitext(x)[0].split('_')[-1])  # Assumes format like "checkpoint_1.json"
+            [f for f in os.listdir(checkpoint_dir) if f.endswith('.ckpt') and not f.endswith('best_model.ckpt')],
+            key=lambda x: int(x.split('_')[1].split('.')[0])  # Extract epoch number from "epoch_X.ckpt"
         )
 
         for file in checkpoint_files:
             file_path = os.path.join(checkpoint_dir, file)
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-                train_loss.append(data['train_loss'])
-                val_loss.append(data['val_loss'])
-                train_acc.append(data['train_acc'])
-                val_acc.append(data['val_acc'])
+            try:
+                with open(file_path, 'rb') as f:
+                    data = pickle.load(f)
+                    train_loss.append(data['train_loss_history'][-1])  # Get last value for this epoch
+                    val_loss.append(data['val_loss_history'][-1])
+                    train_acc.append(data['train_acc_history'][-1])
+                    val_acc.append(data['val_acc_history'][-1])
+                    print(f"Loaded checkpoint from {file_path}")
+            except Exception as e:
+                print(f"Error loading {file_path}: {str(e)}")
+                continue
+
+        if not train_loss:
+            print("No valid checkpoint data found to plot!")
+            return
 
         # Plotting
         plt.figure(figsize=(12, 4))
@@ -270,7 +277,6 @@ class CNN:
 
         plt.tight_layout()
         plt.show()
-
 
         # [Keep all your existing evaluate(), save_model(), load_model(), predict() methods]
         # save model after certain epochs if there is a parameter
@@ -319,47 +325,48 @@ class CNN:
             pickle.dump(model_data, f)
         print(f"Model saved to {filepath}")
 
-    @staticmethod
-    def load_model(filepath):
-        """Load a model from a file"""
-        with open(filepath, 'rb') as f:
-            model_data = pickle.load(f)
+    # @staticmethod
+    def load_model(self, filepath):
+        # """Load a model from a file"""
+        # with open(filepath, 'rb') as f:
+        #     model_data = pickle.load(f)
 
-        model = CNN()
-        new_layers = []
+        # model = CNN()
+        # new_layers = []
 
-        for layer_data in model_data['layers']:
-            if layer_data['type'] == 'Conv2D':
-                layer = Conv2D(
-                    filters=layer_data['filters'],
-                    kernel_size=layer_data['kernel_size'],
-                    in_channels=layer_data['in_channels'],
-                    stride=layer_data['stride'],
-                    padding=layer_data['padding']
-                )
-                layer.weights = layer_data['weights']
-                layer.bias = layer_data['bias']
-                new_layers.append(layer)
-            elif layer_data['type'] == 'Dense':
-                layer = Dense(
-                    input_size=layer_data['input_size'],
-                    output_size=layer_data['output_size']
-                )
-                layer.weights = layer_data['weights']
-                layer.bias = layer_data['bias']
-                new_layers.append(layer)
-            elif layer_data['type'] == 'ReLU':
-                new_layers.append(ReLU())
-            elif layer_data['type'] == 'MaxPool2D':
-                new_layers.append(MaxPool2D())
-            elif layer_data['type'] == 'Flatten':
-                new_layers.append(Flatten())
-            elif layer_data['type'] == 'Softmax':
-                new_layers.append(Softmax())
+        # for layer_data in model_data['layers']:
+        #     if layer_data['type'] == 'Conv2D':
+        #         layer = Conv2D(
+        #             filters=layer_data['filters'],
+        #             kernel_size=layer_data['kernel_size'],
+        #             in_channels=layer_data['in_channels'],
+        #             stride=layer_data['stride'],
+        #             padding=layer_data['padding']
+        #         )
+        #         layer.weights = layer_data['weights']
+        #         layer.bias = layer_data['bias']
+        #         new_layers.append(layer)
+        #     elif layer_data['type'] == 'Dense':
+        #         layer = Dense(
+        #             input_size=layer_data['input_size'],
+        #             output_size=layer_data['output_size']
+        #         )
+        #         layer.weights = layer_data['weights']
+        #         layer.bias = layer_data['bias']
+        #         new_layers.append(layer)
+        #     elif layer_data['type'] == 'ReLU':
+        #         new_layers.append(ReLU())
+        #     elif layer_data['type'] == 'MaxPool2D':
+        #         new_layers.append(MaxPool2D())
+        #     elif layer_data['type'] == 'Flatten':
+        #         new_layers.append(Flatten())
+        #     elif layer_data['type'] == 'Softmax':
+        #         new_layers.append(Softmax())
 
-        model.layers = new_layers
+        # model.layers = new_layers
+        self.load_checkpoint(filepath)  
         print(f"Model loaded from {filepath}")
-        return model
+        # return model
 
     def predict(self, image_path, show_image=True):
         """Predict class for a single image"""
